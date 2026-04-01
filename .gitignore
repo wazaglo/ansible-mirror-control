@@ -1,0 +1,15 @@
+# Ansible
+*.retry
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Secrets
+.env
+secret_vars.yml
+
+# Backup files
+*.bak
+*~

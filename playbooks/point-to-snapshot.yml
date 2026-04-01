@@ -1,0 +1,48 @@
+---
+- name: Point servers to local apt-mirror snapshot (no apt update)
+  hosts: all_managed:!mirror
+  become: yes
+
+  vars:
+    snapshot_date: "2026-03-30"
+    debian_release: "bookworm"
+    header_comment: "FROZEN PATCH SET - {{ snapshot_date }} (UAT testing)"
+
+  tasks:
+
+    - name: Backup original sources.list
+      copy:
+        src: /etc/apt/sources.list
+        dest: "/etc/apt/sources.list.bak.{{ ansible_date_time.date }}"
+        remote_src: yes
+        mode: preserve
+
+    - name: Find any previous local snapshot list files in sources.list.d
+      find:
+        paths: /etc/apt/sources.list.d
+        patterns: "*snapshot*.list"
+        file_type: file
+      register: old_snapshots
+
+    - name: Delete old snapshot list files
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_snapshots.files | default([]) }}"
+
+    - name: Deploy clean frozen sources.list pointing to snapshot
+      copy:
+        content: |
+          # {{ header_comment }}
+
+          deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }} main contrib non-free non-free-firmware
+          deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }}-updates main contrib non-free non-free-firmware
+          deb https://{{ mirror_host }}/snapshots/debian-security-{{ snapshot_date }} {{ debian_release }}-security main contrib non-free non-free-firmware
+
+          # Optional: keep these commented if you want to preserve original lines for reference
+          # deb https://deb.debian.org/debian {{ debian_release }} main contrib non-free non-free-firmware
+          # deb https://deb.debian.org/debian {{ debian_release }}-updates main contrib non-free non-free-firmware
+          # deb https://security.debian.org/debian-security {{ debian_release }}-security main contrib non-free non-free-firmware
+        dest: /etc/apt/sources.list
+        mode: '0644'
+        backup: yes
