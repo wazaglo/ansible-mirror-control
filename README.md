@@ -88,4 +88,3 @@ ansible-playbook playbooks/point-to-snapshot.yml -e "snapshot_date=2026-03-30"
 - **Efficiency:** Uses `cp -al` for hard-link snapshots to avoid duplicating GBs of data.
 
 ---
-*Created with Gemini CLI for professional DevOps workflows.*
