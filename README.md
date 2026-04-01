@@ -12,22 +12,40 @@ This project implements a **Snapshot-based Patching Strategy**:
 3. **UAT Test:** Point UAT servers to the new snapshot and run updates.
 4. **Production Promotion:** Once validated, point Production servers to the *exact same* snapshot.
 
-## 🏗️ Architecture
-- **Ansible Control Node:** Orchestrates all operations.
-- **Local Mirror Server:** Runs `apt-mirror` and hosts snapshots via Web Server (Nginx/Apache).
-- **Target Nodes:** Debian servers categorized into `uat` and `prod` groups.
+### 🔄 Promotion Workflow
+```mermaid
+graph LR
+    A[Public Debian Repo] -->|Sync| B[Local Mirror]
+    B -->|Snapshot| C(Frozen Patch Set)
+    C -->|Deploy| D[UAT Environment]
+    D -->|Validate| E{Success?}
+    E -->|Yes| F[PROD Environment]
+    E -->|No| G[Re-Snapshot/Fix]
+```
+
+## 🏗️ Architecture & Roles
+This project follows professional Ansible standards by encapsulating logic into reusable **Roles**:
+
+| Role | Purpose | Target |
+| :--- | :--- | :--- |
+| `mirror_sync` | Triggers `apt-mirror` to update the local base repository. | Mirror Server |
+| `mirror_snapshot` | Creates a hard-link snapshot with YYYY-MM-DD timestamp. | Mirror Server |
+| `apt_client` | Reconfigures `/etc/apt/sources.list` to use a specific snapshot. | Managed Nodes |
 
 ## 📁 Project Structure
 ```text
 ansible-mirror-control/
-├── ansible.cfg             # Ansible configuration
+├── site.yml                # Main entry point (calls all playbooks)
+├── ansible.cfg             # Optimized with Pipelining & Fact Caching
 ├── inventory/
 │   └── hosts.ini           # Define mirror and target servers
-├── playbooks/
-│   ├── update_mirror.yml   # Sync local mirror with upstream
-│   ├── snapshot-mirror.yml # Create storage-efficient snapshots
-│   └── point-to-snapshot.yml # Update target nodes to use a snapshot
-└── roles/                  # (Placeholder for future role extraction)
+├── roles/                  # Professional Role-based logic
+│   ├── mirror_sync/
+│   ├── mirror_snapshot/
+│   └── apt_client/
+├── group_vars/
+│   └── all.yml             # Global shared variables
+└── playbooks/              # High-level playbook orchestration
 ```
 
 ## ⚙️ Configuration

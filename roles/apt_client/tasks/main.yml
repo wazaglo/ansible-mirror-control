@@ -1,0 +1,42 @@
+---
+- name: Backup original sources.list
+  copy:
+    src: "{{ apt_sources_file }}"
+    dest: "{{ apt_sources_file }}.bak.{{ ansible_date_time.date }}"
+    remote_src: yes
+    mode: preserve
+  when: backup_sources
+  tags: [apt, backup]
+
+- name: Find any previous local snapshot list files in sources.list.d
+  find:
+    paths: /etc/apt/sources.list.d
+    patterns: "*snapshot*.list"
+    file_type: file
+  register: old_snapshots
+  tags: [apt, cleanup]
+
+- name: Delete old snapshot list files
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ old_snapshots.files | default([]) }}"
+  tags: [apt, cleanup]
+
+- name: Deploy clean frozen sources.list pointing to snapshot
+  copy:
+    content: |
+      # {{ header_comment }}
+
+      deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }} main contrib non-free non-free-firmware
+      deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }}-updates main contrib non-free non-free-firmware
+      deb https://{{ mirror_host }}/snapshots/debian-security-{{ snapshot_date }} {{ debian_release }}-security main contrib non-free non-free-firmware
+
+      # Optional: reference to original Debian repositories
+      # deb https://deb.debian.org/debian {{ debian_release }} main contrib non-free non-free-firmware
+      # deb https://deb.debian.org/debian {{ debian_release }}-updates main contrib non-free non-free-firmware
+      # deb https://security.debian.org/debian-security {{ debian_release }}-security main contrib non-free non-free-firmware
+    dest: "{{ apt_sources_file }}"
+    mode: '0644'
+    backup: yes
+  tags: [apt, deploy]

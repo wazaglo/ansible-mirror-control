@@ -1,39 +1,6 @@
 ---
-- name: Create daily snapshot of apt-mirror on mirror server
+- name: Create Frozen Snapshot
   hosts: mirror
   become: yes
-
-  vars:
-    snapshot_date: "{{ ansible_date_time.year }}-{{ ansible_date_time.month }}-{{ ansible_date_time.day }}"
-    mirror_root: /var/apt-mirror/mirror
-    web_snapshots: /var/www/html/snapshots
-
-  tasks:
-    - name: Validate snapshot_date format (YYYY-MM-DD)
-      fail:
-        msg: "Invalid snapshot_date format. Expected YYYY-MM-DD."
-      when: not snapshot_date is regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
-
-    - name: Ensure snapshots web directory exists
-      file:
-        path: "{{ web_snapshots }}"
-        state: directory
-        mode: '0755'
-        owner: www-data
-        group: www-data
-
-    - name: Snapshot main Debian repo with hard links
-      command: cp -al "{{ mirror_root }}/deb.debian.org/debian" "{{ web_snapshots }}/debian-{{ snapshot_date }}"
-      args:
-        creates: "{{ web_snapshots }}/debian-{{ snapshot_date }}"
-      changed_when: false
-
-    - name: Snapshot Debian security repo with hard links
-      command: cp -al "{{ mirror_root }}/deb.debian.org/debian-security" "{{ web_snapshots }}/debian-security-{{ snapshot_date }}"
-      args:
-        creates: "{{ web_snapshots }}/debian-security-{{ snapshot_date }}"
-      changed_when: false
-
-    - name: Show the snapshot date for clients
-      debug:
-        msg: "Today's snapshot ready: debian-{{ snapshot_date }} and debian-security-{{ snapshot_date }}"
+  roles:
+    - mirror_snapshot

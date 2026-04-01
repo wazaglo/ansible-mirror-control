@@ -1,0 +1,6 @@
+---
+snapshot_date: "{{ ansible_date_time.year }}-{{ ansible_date_time.month }}-{{ ansible_date_time.day }}"
+mirror_root: "/var/apt-mirror/mirror"
+web_snapshots: "/var/www/html/snapshots"
+snapshot_owner: "www-data"
+snapshot_group: "www-data"

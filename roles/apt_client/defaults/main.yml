@@ -1,0 +1,7 @@
+---
+snapshot_date: "{{ ansible_date_time.date }}"
+debian_release: "bookworm"
+header_comment: "FROZEN PATCH SET - {{ snapshot_date }}"
+mirror_host: "X.X.X.X" # <--- REPLACE WITH YOUR MIRROR IP
+apt_sources_file: "/etc/apt/sources.list"
+backup_sources: yes

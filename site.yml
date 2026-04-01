@@ -1,0 +1,6 @@
+---
+# Main entry point for the entire infrastructure
+
+- import_playbook: playbooks/update_mirror.yml
+- import_playbook: playbooks/snapshot-mirror.yml
+- import_playbook: playbooks/point-to-snapshot.yml

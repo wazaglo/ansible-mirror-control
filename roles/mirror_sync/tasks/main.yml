@@ -1,0 +1,11 @@
+---
+- name: Run apt-mirror sync
+  command: /usr/bin/apt-mirror /etc/apt/mirror.list
+  register: mirror_update
+  changed_when: true
+  tags: [mirror, sync]
+
+- name: Show sync status
+  debug:
+    msg: "{{ (mirror_update.stdout_lines | default([]))[-25:] }}"
+  tags: [mirror, sync, debug]
