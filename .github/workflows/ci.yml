@@ -1,0 +1,29 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: pip install ansible ansible-lint yamllint
+
+      - name: Run yamllint
+        run: yamllint --strict .
+
+      - name: Run ansible-lint
+        run: ansible-lint
+
+      - name: Syntax check playbooks
+        run: |
+          for pb in playbooks/*.yml; do
+            ansible-playbook --syntax-check "$pb"
+          done
