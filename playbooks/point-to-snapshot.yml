@@ -1,14 +1,28 @@
 ---
-- name: Point servers to local apt-mirror snapshot (no apt update)
+- name: Point managed nodes to frozen apt snapshot
   hosts: all_managed:!mirror
   become: yes
+  gather_facts: yes
 
   vars:
-    snapshot_date: "2026-03-30"
-    debian_release: "bookworm"
-    header_comment: "FROZEN PATCH SET - {{ snapshot_date }} (UAT testing)"
+    debian_release: "{{ ansible_distribution_release | default('bookworm') }}"
+    header_comment: "Frozen patch set"
 
   tasks:
+    - name: Validate snapshot_date is provided
+      fail:
+        msg: "snapshot_date is required. Pass it with -e 'snapshot_date=YYYY-MM-DD'"
+      when: snapshot_date is not defined or snapshot_date | length == 0
+
+    - name: Validate snapshot_date format
+      fail:
+        msg: "Invalid snapshot_date format '{{ snapshot_date }}'. Expected YYYY-MM-DD."
+      when: not snapshot_date is regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+
+    - name: Validate mirror_host is configured
+      fail:
+        msg: "mirror_host is not defined. Set it in group_vars/all.yml"
+      when: mirror_host is not defined or mirror_host | length == 0
 
     - name: Backup original sources.list
       copy:
@@ -17,32 +31,46 @@
         remote_src: yes
         mode: preserve
 
-    - name: Find any previous local snapshot list files in sources.list.d
+    - name: Find existing snapshot list files
       find:
         paths: /etc/apt/sources.list.d
         patterns: "*snapshot*.list"
         file_type: file
       register: old_snapshots
 
-    - name: Delete old snapshot list files
+    - name: Remove old snapshot list files
       file:
         path: "{{ item.path }}"
         state: absent
       loop: "{{ old_snapshots.files | default([]) }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
 
-    - name: Deploy clean frozen sources.list pointing to snapshot
+    - name: Ensure mirror_host resolves
+      command: "getent hosts {{ mirror_host }}"
+      register: host_resolve
+      changed_when: false
+      failed_when: false
+      when: ansible_connection != 'docker'
+
+    - name: Deploy frozen sources.list
       copy:
         content: |
-          # {{ header_comment }}
+          # {{ header_comment }} — {{ snapshot_date }}
+          # Managed by ansible-mirror-control. Do not edit manually.
 
           deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }} main contrib non-free non-free-firmware
           deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }}-updates main contrib non-free non-free-firmware
           deb https://{{ mirror_host }}/snapshots/debian-security-{{ snapshot_date }} {{ debian_release }}-security main contrib non-free non-free-firmware
-
-          # Optional: keep these commented if you want to preserve original lines for reference
-          # deb https://deb.debian.org/debian {{ debian_release }} main contrib non-free non-free-firmware
-          # deb https://deb.debian.org/debian {{ debian_release }}-updates main contrib non-free non-free-firmware
-          # deb https://security.debian.org/debian-security {{ debian_release }}-security main contrib non-free non-free-firmware
         dest: /etc/apt/sources.list
-        mode: '0644'
+        mode: "0644"
         backup: yes
+      register: sources_deploy
+
+    - name: Show deployment result
+      debug:
+        msg:
+          - "Node: {{ inventory_hostname }}"
+          - "Snapshot: {{ snapshot_date }}"
+          - "Release: {{ debian_release }}"
+          - "Mirror: {{ mirror_host }}"

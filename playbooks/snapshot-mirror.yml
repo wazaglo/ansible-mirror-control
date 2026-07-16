@@ -1,39 +1,67 @@
 ---
-- name: Create daily snapshot of apt-mirror on mirror server
+- name: Create snapshot of apt-mirror repository
   hosts: mirror
   become: yes
+  gather_facts: yes
 
   vars:
     snapshot_date: "{{ ansible_date_time.year }}-{{ ansible_date_time.month }}-{{ ansible_date_time.day }}"
     mirror_root: /var/apt-mirror/mirror
     web_snapshots: /var/www/html/snapshots
+    snapshot_targets:
+      - repo: deb.debian.org/debian
+        name: debian
+      - repo: deb.debian.org/debian-security
+        name: debian-security
 
   tasks:
-    - name: Validate snapshot_date format (YYYY-MM-DD)
+    - name: Fail if snapshot date format is invalid
       fail:
-        msg: "Invalid snapshot_date format. Expected YYYY-MM-DD."
+        msg: "Invalid snapshot_date format '{{ snapshot_date }}'. Expected YYYY-MM-DD."
       when: not snapshot_date is regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
-    - name: Ensure snapshots web directory exists
+    - name: Create snapshots web directory
       file:
         path: "{{ web_snapshots }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
         owner: www-data
         group: www-data
 
-    - name: Snapshot main Debian repo with hard links
-      command: cp -al "{{ mirror_root }}/deb.debian.org/debian" "{{ web_snapshots }}/debian-{{ snapshot_date }}"
-      args:
-        creates: "{{ web_snapshots }}/debian-{{ snapshot_date }}"
-      changed_when: false
+    - name: Verify mirror root exists
+      stat:
+        path: "{{ mirror_root }}"
+      register: mirror_root_stat
 
-    - name: Snapshot Debian security repo with hard links
-      command: cp -al "{{ mirror_root }}/deb.debian.org/debian-security" "{{ web_snapshots }}/debian-security-{{ snapshot_date }}"
-      args:
-        creates: "{{ web_snapshots }}/debian-security-{{ snapshot_date }}"
-      changed_when: false
+    - name: Fail if mirror root is missing
+      fail:
+        msg: "Mirror root {{ mirror_root }} not found. Run update_mirror.yml first."
+      when: not mirror_root_stat.stat.exists
 
-    - name: Show the snapshot date for clients
+    - name: Verify source repo directories exist
+      stat:
+        path: "{{ mirror_root }}/{{ item.repo }}"
+      register: repo_stats
+      loop: "{{ snapshot_targets }}"
+
+    - name: Create hard-link snapshots
+      command:
+        cmd: cp -al "{{ mirror_root }}/{{ item.0.repo }}" "{{ web_snapshots }}/{{ item.0.name }}-{{ snapshot_date }}"
+        creates: "{{ web_snapshots }}/{{ item.0.name }}-{{ snapshot_date }}"
+      loop: "{{ snapshot_targets | zip(repo_stats.results) | list }}"
+      loop_control:
+        label: "{{ item.0.name }}-{{ snapshot_date }}"
+      when: item.1.stat.exists
+      changed_when: true
+
+    - name: Report created snapshots
       debug:
-        msg: "Today's snapshot ready: debian-{{ snapshot_date }} and debian-security-{{ snapshot_date }}"
+        msg: "Snapshot ready: {{ item.name }}-{{ snapshot_date }}"
+      loop: "{{ snapshot_targets }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Set snapshot_date fact for downstream consumption
+      set_fact:
+        current_snapshot: "{{ snapshot_date }}"
+        cacheable: yes
