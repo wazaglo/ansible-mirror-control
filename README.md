@@ -1,73 +1,144 @@
-# Debian Mirror & Frozen Patch Management (Ansible)
+# Debian Mirror & Frozen Patch Management with Ansible
 
-This repository provides an industry-standard Ansible-based solution for managing a local Debian mirror with **Frozen Patch Set** capabilities. It enables a controlled, predictable patching workflow by snapshotting the Debian repository at specific points in time, allowing you to test updates in UAT before promoting them to Production.
+[![CI](https://github.com/wazaglo/ansible-mirror-control/actions/workflows/ci.yml/badge.svg)](https://github.com/wazaglo/ansible-mirror-control/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Ansible](https://img.shields.io/badge/Ansible-%23EE0000.svg?logo=ansible&logoColor=white)](https://www.ansible.com/)
+[![Debian](https://img.shields.io/badge/Debian-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
 
-## 🚀 The Problem
-Standard `apt upgrade` against public mirrors is non-deterministic. Running it today on UAT and next week on Production might install different package versions, leading to "works in UAT, breaks in Prod" scenarios.
+Deterministic, snapshot-based patching for Debian environments using Ansible. Eliminates the "works in UAT, breaks in Prod" problem caused by non-deterministic upstream mirrors.
 
-## ✅ The Solution
-This project implements a **Snapshot-based Patching Strategy**:
-1. **Sync:** Sync a local mirror with upstream Debian repositories.
-2. **Snapshot:** Create a time-stamped "Frozen" snapshot using hard links (storage efficient).
-3. **UAT Test:** Point UAT servers to the new snapshot and run updates.
-4. **Production Promotion:** Once validated, point Production servers to the *exact same* snapshot.
+---
 
-## 🏗️ Architecture
-- **Ansible Control Node:** Orchestrates all operations.
-- **Local Mirror Server:** Runs `apt-mirror` and hosts snapshots via Web Server (Nginx/Apache).
-- **Target Nodes:** Debian servers categorized into `uat` and `prod` groups.
+## The Problem
 
-## 📁 Project Structure
-```text
-ansible-mirror-control/
-├── ansible.cfg             # Ansible configuration
-├── inventory/
-│   └── hosts.ini           # Define mirror and target servers
-├── playbooks/
-│   ├── update_mirror.yml   # Sync local mirror with upstream
-│   ├── snapshot-mirror.yml # Create storage-efficient snapshots
-│   └── point-to-snapshot.yml # Update target nodes to use a snapshot
-└── roles/                  # (Placeholder for future role extraction)
+Running `apt upgrade` against public mirrors is non-deterministic. The same command executed today on UAT and next week on Production may install different package versions, leading to untestable, unreproducible deployments.
+
+## The Solution
+
+A **snapshot-based patching strategy** that freezes the package repository at a known point in time:
+
+1. **Sync** — Mirror upstream Debian repositories to a local server
+2. **Snapshot** — Create a timestamped, storage-efficient hard-link snapshot
+3. **Test** — Point UAT servers to the snapshot and validate updates
+4. **Promote** — Point Production servers to the *exact same* snapshot
+
+---
+
+## Architecture
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  Ansible Control  │────▶   Mirror Server   │────▶   Target Nodes    │
+│      Node         │     │  (apt-mirror +   │     │  (UAT / Prod)     │
+│                   │     │   Nginx/Apache)  │     │                   │
+│  Orchestrates     │     │  /var/apt-mirror │     │  /etc/apt/sources │
+│  all operations   │     │  /var/www/snap   │     │  .list → snapshot │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
-## ⚙️ Configuration
+## Project Structure
 
-Before running any playbooks, you **must** update the following files with your server IP addresses:
+```
+ansible-mirror-control/
+├── .github/workflows/ci.yml   # Automated linting & syntax checks
+├── .ansible-lint               # Ansible lint rules
+├── .yamllint                   # YAML lint rules
+├── ansible.cfg                 # Ansible configuration
+├── inventory/
+│   └── hosts.ini               # Server inventory (mirror, uat, prod)
+├── group_vars/
+│   └── all.yml                 # Global variables (mirror_host)
+├── playbooks/
+│   ├── update_mirror.yml       # Sync upstream repository
+│   ├── snapshot-mirror.yml     # Create frozen snapshots
+│   └── point-to-snapshot.yml   # Apply snapshot to targets
+├── requirements.yml            # Ansible collection dependencies
+├── Makefile                    # Common task shortcuts
+├── SETUP_GUIDE.md              # Step-by-step infrastructure setup
+└── LICENSE                     # MIT License
+```
 
-1.  **`inventory/hosts.ini`**: Update `ansible_host` for each server group.
-2.  **`group_vars/all.yml`**: Update `mirror_host` with the IP of your Debian mirror server.
+---
 
-## 🛠️ Usage
+## Prerequisites
 
-### 1. Sync the Local Mirror
-Updates the base mirror files from upstream Debian.
+- Ansible control node with SSH access to all servers
+- Debian 12+ mirror server with `apt-mirror` installed
+- Web server (Nginx/Apache) serving `/var/www/html/snapshots`
+- Debian 12+ target nodes (UAT/Production)
+
+## Quick Start
+
+### 1. Configure Inventory
+
+Edit `inventory/hosts.ini` with your server IPs:
+
+```ini
+[mirror]
+mirror-01 ansible_host=10.0.0.10
+
+[uat]
+uat-01 ansible_host=10.0.0.20
+
+[prod]
+prod-01 ansible_host=10.0.0.30
+```
+
+### 2. Set Global Variables
+
+Edit `group_vars/all.yml`:
+
+```yaml
+mirror_host: "10.0.0.10"
+```
+
+### 3. Sync the Mirror
+
 ```bash
 ansible-playbook playbooks/update_mirror.yml
 ```
 
-### 2. Create a Frozen Snapshot
-Creates a hard-link copy of the current mirror. This is nearly instantaneous and consumes minimal additional disk space.
+### 4. Create a Snapshot
+
 ```bash
 ansible-playbook playbooks/snapshot-mirror.yml
 ```
-*Output will provide the snapshot date, e.g., `debian-2026-03-30`.*
 
-### 3. Point Servers to Snapshot
-Updates `/etc/apt/sources.list` on target nodes to use the specific local snapshot.
+### 5. Apply Snapshot to UAT
+
 ```bash
-ansible-playbook playbooks/point-to-snapshot.yml -e "snapshot_date=2026-03-30"
+ansible-playbook playbooks/point-to-snapshot.yml -e "snapshot_date=2026-07-15" --limit uat
 ```
 
-## ⚙️ Prerequisites
-- **Ansible** installed on the control node.
-- **apt-mirror** installed and configured on the Mirror Server.
-- A web server (Nginx/Apache) serving `/var/www/html/snapshots` on the Mirror Server.
-- SSH access to all managed nodes.
+### 6. Promote to Production
 
-## 🔒 Security & Best Practices
-- **Backups:** `point-to-snapshot.yml` automatically creates backups of `sources.list`.
-- **Traceability:** Adds a header comment to `sources.list` indicating the frozen patch set date.
-- **Efficiency:** Uses `cp -al` for hard-link snapshots to avoid duplicating GBs of data.
+```bash
+ansible-playbook playbooks/point-to-snapshot.yml -e "snapshot_date=2026-07-15" --limit prod
+```
 
 ---
-*Created with Gemini CLI for professional DevOps workflows.*
+
+## Development
+
+```bash
+make lint          # Run ansible-lint
+make yamllint      # Run YAML linting
+make syntax-check  # Validate all playbook syntax
+make all           # Run all checks
+```
+
+---
+
+## Security & Best Practices
+
+- **Host key checking** enabled in `ansible.cfg`
+- **Automatic backups** of `sources.list` before modification
+- **Traceability** — each `sources.list` includes a header with the snapshot date
+- **Storage efficiency** — snapshots use hard links (`cp -al`), not full copies
+- **Idempotent playbooks** — safe to run multiple times
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Wisdom Azaglo
