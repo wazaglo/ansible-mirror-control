@@ -1,0 +1,7 @@
+---
+skip_list:
+  - role-name
+  - fqcn-builtins
+exclude_paths:
+  - .github/
+  - tests/
