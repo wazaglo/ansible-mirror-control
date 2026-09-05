@@ -17,10 +17,10 @@ Running `apt upgrade` against public mirrors is non-deterministic. The same comm
 
 A **snapshot-based patching strategy** that freezes the package repository at a known point in time:
 
-1. **Sync** — Mirror upstream Debian repositories to a local server
-2. **Snapshot** — Create a timestamped, storage-efficient hard-link snapshot
-3. **Test** — Point UAT servers to the snapshot and validate updates
-4. **Promote** — Point Production servers to the *exact same* snapshot
+1. **Sync** - Mirror upstream Debian repositories to a local server
+2. **Snapshot** - Create a timestamped, storage-efficient hard-link snapshot
+3. **Test** - Point UAT servers to the snapshot and validate updates
+4. **Promote** - Point Production servers to the *exact same* snapshot
 
 ---
 
@@ -133,9 +133,9 @@ make all           # Run all checks
 
 - **Host key checking** enabled in `ansible.cfg`
 - **Automatic backups** of `sources.list` before modification
-- **Traceability** — each `sources.list` includes a header with the snapshot date
-- **Storage efficiency** — snapshots use hard links (`cp -al`), not full copies
-- **Idempotent playbooks** — safe to run multiple times
+- **Traceability**: each `sources.list` includes a header with the snapshot date
+- **Storage efficiency**: snapshots use hard links (`cp -al`), not full copies
+- **Idempotent playbooks**: safe to run multiple times
 
 ---
 
