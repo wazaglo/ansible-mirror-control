@@ -56,7 +56,7 @@
     - name: Deploy frozen sources.list
       copy:
         content: |
-          # {{ header_comment }} — {{ snapshot_date }}
+          # {{ header_comment }} - {{ snapshot_date }}
           # Managed by ansible-mirror-control. Do not edit manually.
 
           deb https://{{ mirror_host }}/snapshots/debian-{{ snapshot_date }} {{ debian_release }} main contrib non-free non-free-firmware
